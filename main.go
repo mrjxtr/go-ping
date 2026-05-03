@@ -12,19 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mrjxtr/go-ping/internal/config"
 	"github.com/mrjxtr/go-ping/internal/handlers"
 	"github.com/mrjxtr/go-ping/internal/probe"
 )
-
-const userAgent = "go-ping/1.0"
-
-// canonical 204-no-content connectivity endpoints. tried in order, first 204 wins.
-// anything else (200 with HTML, redirect, timeout) means captive portal or real outage.
-var defaultProbes = []string{
-	"https://www.google.com/generate_204",
-	"https://connectivitycheck.gstatic.com/generate_204",
-	"https://www.gstatic.com/generate_204",
-}
 
 func main() {
 	slog.SetDefault(slog.New(&handlers.PingHandler{Out: os.Stderr}))
@@ -36,6 +27,8 @@ func main() {
 
 // run is the real entrypoint; main only handles the error exit so defers fire.
 func run() error {
+	cfg := config.NewConfig()
+
 	var (
 		timeout  = flag.Duration("timeout", 5*time.Second, "per-probe request timeout")
 		interval = flag.Duration("interval", 1*time.Second, "delay between probe ticks")
@@ -54,7 +47,7 @@ func run() error {
 		return fmt.Errorf("timeout must be positive, got %s", *timeout)
 	}
 
-	probes := defaultProbes
+	probes := cfg.DefaultProbes
 	if *urlFlag != "" {
 		u, err := url.Parse(*urlFlag)
 		if err != nil {
@@ -92,7 +85,7 @@ func run() error {
 	var seq uint64
 	for {
 		seq++
-		isOnline, res, err := probe.Probe(ctx, client, probes)
+		isOnline, res, err := probe.Probe(ctx, client, cfg.UserAgent, probes)
 
 		if isOnline && res.Cold() {
 			slog.Info("setup", probe.SetupAttrs(res)...)

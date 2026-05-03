@@ -14,8 +14,6 @@ import (
 	"time"
 )
 
-const userAgent = "go-ping/1.0"
-
 // probeResult is the timing breakdown for one successful probe.
 type ProbeResult struct {
 	Target string
@@ -33,6 +31,7 @@ func (r ProbeResult) Cold() bool { return r.DNS > 0 || r.TCP > 0 || r.TLS > 0 }
 func Probe(
 	ctx context.Context,
 	client *http.Client,
+	agent string,
 	urls []string,
 ) (bool, ProbeResult, error) {
 	var lastErr error
@@ -40,7 +39,7 @@ func Probe(
 		if ctx.Err() != nil {
 			return false, ProbeResult{}, ctx.Err()
 		}
-		res, err := check(ctx, client, probeURL)
+		res, err := check(ctx, client, agent, probeURL)
 		if err == nil {
 			return true, res, nil
 		}
@@ -52,7 +51,12 @@ func Probe(
 // check fires one request and returns the timing breakdown on a 204; any other
 // status is a failure (likely captive portal). RTT is "request written → first
 // response byte" via httptrace; setup phases are filled only on a fresh dial.
-func check(ctx context.Context, client *http.Client, url string) (ProbeResult, error) {
+func check(
+	ctx context.Context,
+	client *http.Client,
+	agent string,
+	url string,
+) (ProbeResult, error) {
 	var (
 		dnsStart, dnsDone    time.Time
 		connStart, connDone  time.Time
@@ -79,7 +83,7 @@ func check(ctx context.Context, client *http.Client, url string) (ProbeResult, e
 	if err != nil {
 		return ProbeResult{}, err
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", agent)
 
 	resp, err := client.Do(req)
 	if err != nil {
